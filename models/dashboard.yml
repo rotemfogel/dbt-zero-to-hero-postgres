@@ -1,0 +1,15 @@
+version: 2
+
+exposures:
+  - name: Executive Dashboard
+    type: dashboard
+    maturity: low
+    url: https://a6fde4fe.us1a.app.preset.io/superset/dashboard/8/?native_filters_key=JkyKzNf43NsDEITecsmryEiPd_fmyJSBDUGNVN93g7fkP1xmAscD-4Ud7N_kNL4X
+    description: Executive Dashboard about Airbnb listings and hosts
+    depends_on:
+      - ref('dim_hosts_cleansed')
+      - ref('mart_full_moon_reviews')
+
+    owner:
+      name: Rotem Fogel
+      email: rotemfo@gmail.com
