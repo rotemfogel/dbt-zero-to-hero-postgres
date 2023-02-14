@@ -205,6 +205,12 @@ SELECT id           AS host_id,
 `models/dim/dim_listings_cleansed.sql`:
 
 ```sql
+{{
+    config(
+        materialized = 'view'
+    )
+}}
+
 WITH staging_listings AS (
   SELECT *
     FROM {{ ref('staging_listings') }}
@@ -218,7 +224,7 @@ SELECT listing_id,
          ELSE minimum_nights
        END                                      AS minimum_nights,
        host_id,
-       REPLACE(price_str, '$') :: NUMBER(10, 2) AS price,
+       REPLACE(price_str, '$', '')::NUMERIC(10, 2) AS price,
        created_at,
        updated_at
   FROM staging_listings
@@ -233,12 +239,13 @@ SELECT listing_id,
         materialized = 'view'
     )
 }}
+
 WITH staging_hosts AS (
   SELECT *
     FROM {{ ref('staging_hosts') }}
 )
 SELECT host_id,
-       NVL(host_name, 'Anonymous') AS host_name,
+       COALESCE(host_name, 'Anonymous') AS host_name,
        is_superhost,
        created_at,
        updated_at
@@ -264,7 +271,7 @@ WITH staging_hosts AS (
     FROM {{ ref('staging_hosts') }}
 )
 SELECT host_id,
-       NVL(host_name, 'Anonymous') AS host_name,
+       COALESCE(host_name, 'Anonymous') AS host_name,
        is_superhost,
        created_at,
        updated_at
@@ -272,7 +279,7 @@ SELECT host_id,
 ```
 
 ## Incremental Models
-The `fact/FACT_REVIEWS.sql` model:
+The `fact/fact_reviews.sql` model:
 ```sql
 {{
     config(
@@ -285,7 +292,10 @@ WITH staging_reviews AS (
   SELECT *
     FROM {{ ref('staging_reviews') }}
 )
-SELECT *
+SELECT {{ dbt_utils.generate_surrogate_key(
+         ['listing_id', 'review_date', 'reviewer_name', 'review_text']
+       ) }} AS review_id,
+       *
   FROM staging_reviews
  WHERE review_text IS NOT NULL
 {% if is_incremental() %}
@@ -297,15 +307,14 @@ SELECT *
 Get every review for listing _3176_:
 ```sql
 SELECT * 
-  FROM "AIRBNB"."DEV"."FACT_REVIEWS" 
+  FROM airbnb.dev.fact_reviews
  WHERE listing_id=3176;
 ```
 
 Add a new record to the table:
 ```sql
-INSERT INTO "AIRBNB"."RAW"."RAW_REVIEWS"
-VALUES (3176, CURRENT_TIMESTAMP(), 'Rotem', 'excellent stay!', 'positive');
-
+INSERT INTO raw.raw_reviews
+VALUES (3176, CURRENT_TIMESTAMP, 'Rotem', 'excellent stay!', 'positive');
 ```
 
 Making a full-refresh:
@@ -313,7 +322,7 @@ Making a full-refresh:
 dbt run --full-refresh
 ```
 ## DIM listings with hosts
-The contents of `dim/dim_listings_w_hosts.sql`:
+The contents of `dim/dim_listings_with_hosts.sql`:
 ```sql
 WITH l AS (
   SELECT *
@@ -333,8 +342,8 @@ SELECT listing_id,
        is_superhost                         AS host_is_superhost,
        l.created_at,
        GREATEST(l.updated_at, h.updated_at) AS updated_at
-  FROM h
-  JOIN l
+  FROM l
+  LEFT JOIN h
  USING (host_id)
 ```
 
@@ -385,7 +394,7 @@ sources:
           period: hour
 ```
 
-## Contents of models/mart/full_moon_reviews.sql
+## Contents of models/mart/mart_full_moon_reviews.sql
 ```sql
 {{
     config(
@@ -407,7 +416,7 @@ SELECT r.*,
        END AS is_full_moon
   FROM fact_reviews r
   LEFT JOIN full_moon_dates fm
-  ON (TO_DATE(r.review_date) = DATEADD(DAY, 1, fm.full_moon_date))
+    ON (DATE(r.review_date) = fm.full_moon_date + INTERVAL '1' DAY)
 ```
 
 # Snapshots
@@ -436,13 +445,13 @@ SELECT *
 
 ### Updating the table
 ```sql
-UPDATE AIRBNB.RAW.RAW_LISTINGS 
+UPDATE airbnb.raw.raw_listings 
    SET minimum_nights = 30,
        updated_at     = CURRENT_TIMESTAMP() 
  WHERE id=3176;
 
 SELECT * 
-  FROM AIRBNB.DEV.SCD_RAW_LISTINGS 
+  FROM airbnb.dev.scd_raw_listings 
  WHERE ID=3176;
 ```
 
@@ -461,7 +470,8 @@ The contents of `snapshots/scd_raw_hosts.sql`:
    )
 }}
 
-select * FROM {{ source('airbnb', 'hosts') }}
+SELECT * 
+  FROM {{ source('airbnb', 'hosts') }}
 
 {% endsnapshot %}
 ```
@@ -521,10 +531,11 @@ Create a singular test in `tests/consistent_created_at.sql` that checks that the
 
 ### Solution
 ```sql
-SELECT * FROM {{ ref('dim_listings_cleansed') }} l
-INNER JOIN {{ ref('FACT_REVIEWS') }} r
-USING (listing_id)
-WHERE l.created_at >= r.review_date
+SELECT *
+  FROM {{ ref('dim_listings_cleansed') }} l
+  JOIN {{ ref('fact_reviews') }} r
+ USING (listing_id)
+ WHERE l.created_at >= r.review_date
 ```
 # Marcos, Custom Tests and Packages 
 ## Macros

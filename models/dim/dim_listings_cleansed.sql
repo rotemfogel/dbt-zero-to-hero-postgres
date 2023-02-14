@@ -17,7 +17,7 @@ SELECT listing_id,
          ELSE minimum_nights
        END                                      AS minimum_nights,
        host_id,
-       REPLACE(price_str, '$', '') :: NUMERIC(10, 2) AS price,
+       REPLACE(price_str, '$', '')::NUMERIC(10, 2) AS price,
        created_at,
        updated_at
   FROM staging_listings
