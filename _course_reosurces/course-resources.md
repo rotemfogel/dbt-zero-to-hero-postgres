@@ -23,17 +23,6 @@ CREATE USER dbt WITH ENCRYPTED PASSWORD 'dbtPassword123';
 GRANT ALL ON DATABASE airbnb to dbt;
 ```
 
-Connect to postgres database as dbt
-```bash
-psql -h 127.0.0.1 -U dbt -d airbnb
-```
-Paste following SQL Statements
-```sql
--- Create our schemas
-CREATE SCHEMA raw;
-CREATE SCHEMA dev;
-```
-
 ## PostgreSQL data import
 Download the files from S3
 ```bash
