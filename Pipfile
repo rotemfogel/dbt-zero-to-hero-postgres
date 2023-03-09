@@ -5,6 +5,8 @@ name = "pypi"
 
 [packages]
 dbt-postgres = "*"
+pandas = "*"
+numpy = "*"
 
 [dev-packages]
 black = "*"

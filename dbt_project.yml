@@ -42,3 +42,6 @@ models:
       +materialized: table
     fact:
       +materialized: table
+    seeds:
+      +schema: raw
+      +materialized: table
